@@ -32,6 +32,7 @@ main(int argc, char *argv[])
   }
 
   for(i = 1; i < argc; i++){
+    // <0 means it gives an error code ig
     if((fd = open(argv[i], O_RDONLY)) < 0){
       fprintf(2, "cat: cannot open %s\n", argv[i]);
       exit(1);
