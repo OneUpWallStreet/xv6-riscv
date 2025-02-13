@@ -91,3 +91,10 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// new system call returns free memory
+int
+sys_getfreemem(void)
+{
+  return kgetfreemem();
+}
