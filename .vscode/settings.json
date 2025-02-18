@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.module": "php",
+        "limits": "cpp",
+        "types.h": "c",
+        "defs.h": "c"
+    }
+}

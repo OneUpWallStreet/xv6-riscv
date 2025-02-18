@@ -16,6 +16,11 @@
 #include "file.h"
 #include "fcntl.h"
 
+struct {
+  struct spinlock lock;
+  int readcount;
+} readcounter;
+
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 static int
@@ -76,7 +81,29 @@ sys_read(void)
   argint(2, &n);
   if(argfd(0, 0, &f) < 0)
     return -1;
+
+  // Increment counter for our new system call
+  acquire(&readcounter.lock);
+  readcounter.readcount++;
+  release(&readcounter.lock);
+
   return fileread(f, p, n);
+}
+
+void
+rcinit(void){
+  initlock(&readcounter.lock, "readcounter");
+  acquire(&readcounter.lock);
+  readcounter.readcount = 0;
+  release(&readcounter.lock);
+}
+
+uint64
+sys_getreadcount(void){
+  acquire(&readcounter.lock);
+  int count = readcounter.readcount;
+  release(&readcounter.lock);
+  return count;
 }
 
 uint64

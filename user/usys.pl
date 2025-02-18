@@ -14,6 +14,13 @@ sub entry {
     print " ecall\n";
     print " ret\n";
 }
+
+# Example of what this translates to for each SysCall
+# .global fork
+# fork:
+#     li a7, SYS_fork  # Load syscall number for fork into a7
+#     ecall            # Call kernel
+#     ret              # Return to caller
 	
 entry("fork");
 entry("exit");
@@ -36,3 +43,4 @@ entry("getpid");
 entry("sbrk");
 entry("sleep");
 entry("uptime");
+entry("getreadcount");
