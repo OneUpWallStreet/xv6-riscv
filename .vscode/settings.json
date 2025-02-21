@@ -3,6 +3,7 @@
         "*.module": "php",
         "limits": "cpp",
         "types.h": "c",
-        "defs.h": "c"
+        "defs.h": "c",
+        "fcntl.h": "c"
     }
 }

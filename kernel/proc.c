@@ -5,6 +5,8 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "pstat.h"
+#include "helper.h"
 
 struct cpu cpus[NCPU];
 
@@ -140,6 +142,10 @@ found:
     return 0;
   }
 
+  // Allolcate 1 ticket to process by default
+  p->tickets = 1;
+  p->schedule_count = 0;
+
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
@@ -163,12 +169,13 @@ freeproc(struct proc *p)
   p->pagetable = 0;
   p->sz = 0;
   p->pid = 0;
-  p->parent = 0;
+p->parent = 0;
   p->name[0] = 0;
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  p->tickets = 0;
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -254,6 +261,69 @@ userinit(void)
   release(&p->lock);
 }
 
+// Adds n tickets to process.
+// Return 0 on success, -1 on failure.
+int 
+addticketstoproc(int n){
+  
+  struct proc *p = myproc();
+
+  if(p==0){
+    printf("kernel: addticketstoproc failed because could not get myProc\n");
+    return -1;
+  }
+  
+  acquire(&p->lock);
+  p->tickets += n;
+  release(&p->lock);
+
+  return 0;
+}
+
+// When passed pstat struct it populates it with details about
+// all current proccess
+int
+getpstats(struct pstat *pstats){
+
+  memset(pstats->inuse,0,sizeof(pstats->inuse));
+  memset(pstats->pid,0,sizeof(pstats->pid));
+  memset(pstats->tickets,0,sizeof(pstats->tickets));
+  memset(pstats->ticks,0,sizeof(pstats->ticks));
+  // printf("\nkernel ps\n");
+
+  for(int i=0;i<NPROC;i++){
+    struct proc *p = &proc[i];
+
+    if(p->state != UNUSED){
+      pstats->inuse[i] = 1;
+      // printf("\nname: %s\ntickets: %d\nstate: %d\npid: %d\nschedule count: %d\n", p->name, p->tickets, p->state, p->pid,p->schedule_count);
+    }
+   
+    pstats->tickets[i] = p->tickets;
+    pstats->ticks[i] = p->schedule_count;
+    pstats->pid[i] = p->pid;
+
+  }
+
+  return 0;
+
+}
+
+// returns total number of tickets in the system (all proccesses in proc array)
+static int
+gettotaltickets(){
+  struct proc *p;
+  int n = 0;
+  for(p=proc;p<&proc[NPROC];p++){
+      if(p->state == RUNNABLE){
+        n += p->tickets;
+      }
+  }
+
+  return n;
+}
+
+
 // Grow or shrink user memory by n bytes.
 // Return 0 on success, -1 on failure.
 int
@@ -301,6 +371,9 @@ fork(void)
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
+
+  // Set tickets of child to be same as parent
+  np->tickets = p->tickets;
 
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
@@ -441,41 +514,52 @@ wait(uint64 addr)
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
-void
+void 
 scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-
   c->proc = 0;
+
   for(;;){
-    // The most recent process to run may have had interrupts
-    // turned off; enable them to avoid a deadlock if all
-    // processes are waiting.
     intr_on();
 
-    int found = 0;
-    for(p = proc; p < &proc[NPROC]; p++) {
+    int counter = 0;
+    int total = gettotaltickets();
+    // If there are no RUNNABLE processes, skip scheduling.
+    if(total == 0)
+      continue;
+    int lottery = random_range(1, total);
+    
+    struct proc *winner = 0;
+    
+    // Iterate over processes and sum tickets only for RUNNABLE processes.
+    for(p = proc; p < &proc[NPROC]; p++){
       acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+      if(p->state == RUNNABLE){
+        // this is imp i.e. only update counter for RUNNABLE proccesses otherwise it will try to
+        // schedule sleeping proccesses and be stuck in a loop
+        counter += p->tickets;
+        if(counter >= lottery){
+          // Candidate found: mark this as the winner.
+          winner = p;
+          // Do not break immediately; we want to hold the lock on the winner.
+          break;
+        }
       }
       release(&p->lock);
     }
-    if(found == 0) {
-      // nothing to run; stop running on this core until an interrupt.
-      intr_on();
-      asm volatile("wfi");
+    
+    // If we found a winner, schedule it.
+    if(winner){
+      winner->schedule_count++; // Increment schedule count
+      winner->state = RUNNING;
+      c->proc = winner;
+      // Switch contexts; when the process yields, we'll come back here.
+      swtch(&c->context, &winner->context);
+      c->proc = 0;
+      // Release the lock after returning from swtch.
+      release(&winner->lock);
     }
   }
 }
@@ -689,7 +773,7 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    printf("%d %s %s", p->pid, state, p->name);
+    printf("%d %s %s %d", p->pid, state, p->name, p->tickets);
     printf("\n");
   }
 }

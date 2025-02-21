@@ -1,3 +1,24 @@
+# xV6 - [Operating Systems: Three Easy Pieces](https://pages.cs.wisc.edu/~remzi/OSTEP/)
+
+## scheduling-xv6-lottery
+
+Changed the scheduler to a [lottery scheduler](https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-sched-lottery.pdf) as described in the os-tep [Project 2](https://github.com/remzi-arpacidusseau/ostep-projects/tree/master/scheduling-xv6-lottery) (from Kernel Hacking). The scheduler isn’t very good at all—it feels quite unresponsive. Below is a graph of CPU ticks with the number of tickets as follows:
+
+```
+Process ID: 1, Tickets: 1, Ticks: 26
+Process ID: 2, Tickets: 1, Ticks: 22
+Process ID: 12, Tickets: 1, Ticks: 1
+Process ID: 6, Tickets: 5, Ticks: 7136
+Process ID: 8, Tickets: 10, Ticks: 14147
+Process ID: 10, Tickets: 3, Ticks: 4241
+```
+
+### lottery-graph
+
+![lottery-graph.png](/misc/assets/lottery-graph.png)
+
+# Old README
+
 xv6 is a re-implementation of Dennis Ritchie's and Ken Thompson's Unix
 Version 6 (v6).  xv6 loosely follows the structure and style of v6,
 but is implemented for a modern RISC-V multiprocessor using ANSI C.

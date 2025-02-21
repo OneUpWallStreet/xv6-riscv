@@ -5,6 +5,8 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "pstat.h"
+#include <stddef.h>  // Contains definition for NULL
 
 uint64
 sys_exit(void)
@@ -90,4 +92,41 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64
+sys_settickets(void ){
+
+  int ticketCount;
+  argint(0, &ticketCount);
+
+  // Ticket count needs to be +ve
+  if(ticketCount < 0){
+    return -1;
+  }
+
+  // Going to proc.c and adding tickets to current process
+  addticketstoproc(ticketCount);
+
+  return 0;
+}
+
+uint64
+sys_getpinfo(void){
+
+  // user pointer for pstat struct to return back
+  uint64 uptr;
+  struct pstat kpstats;
+
+  argaddr(0, &uptr);
+  
+  getpstats(&kpstats);
+
+  // don't need to do user address checking because copyout does it.
+  if(copyout(myproc()->pagetable,uptr,(char *)&kpstats,sizeof(kpstats)) < 0){
+    return -1;
+  } 
+  
+  return 0;
+
 }
